@@ -22,7 +22,7 @@ $plugins->add_hook("pre_output_page", "affiliates_run");
 defined('PLUGINLIBRARY') or define('PLUGINLIBRARY', MYBB_ROOT.'inc/plugins/pluginlibrary.php');
 
 function affiliates_info()
-{affiliates_activate();
+{
 	return array(
 		"name"			=> "Forum Affiliates Manager",
 		"description"	=> "Easily manage your forum's affiliates.",
@@ -73,7 +73,6 @@ function affiliates_activate()
 	</tr>
 </tbody> 
 </table>',
-		'list_item'	=> "<span style=\"width:{\$maxwidth}px;height:{\$maxheight}px;float:left;margin-right:5px;margin-bottom: 2px;text-align:left;\"><a href=\"{\$mybb->settings['bburl']}/index.php?action=visit&amp;id={\$id}&amp;my_post_key={\$mybb->post_code}\"><img src=\"{\$mybb->settings['uploadspath']}/affiliates/{\$affiliate['image']}\" alt=\"\" width=\"auto\" height=\"auto\" title=\"{\$affiliate['name']}\"></a></span>",
 		'list_empty'	=> '{$lang->no_affiliates}',
 	));
 
@@ -139,15 +138,14 @@ function affiliates_run(&$page)
 
 	if(!is_member($mybb->settings['affiliates_groups_ignore']) && strpos($page, '<!--AFFILIATES-->') !== false)
 	{
-		if($mybb->get_input('action') == "visit")
 		{
 			global $db;
-			
-			verify_post_check($mybb->get_input('my_post_key', 1));
+
+			verify_post_check($mybb->get_input('my_post_key'));
 
 			$query = $db->simple_select("affiliates", "id, link", "id='{$mybb->get_input('id', 1)}'");
 			$affiliate = $db->fetch_array($query);
-				
+
 			if(empty($affiliate['id']) || empty($affiliate['link']))
 			{
 				error($lang->invalid_affiliate);
@@ -161,6 +159,8 @@ function affiliates_run(&$page)
 		global $templates, $lang, $theme;
 
 		$lang->load("affiliates");
+
+		$current_location = get_current_location();
 
 		$list_affiliates = '';
 
