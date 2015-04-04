@@ -17,10 +17,12 @@ $plugins->add_hook("admin_config_menu", "affiliates_admin_nav");
 $plugins->add_hook("admin_config_permissions", "affiliates_admin_permissions");
 $plugins->add_hook("admin_config_action_handler", "affiliates_action_handler");
 $plugins->add_hook("admin_load", "affiliates_admin");
-$plugins->add_hook("global_start", "affiliates_run");
+$plugins->add_hook("pre_output_page", "affiliates_run");
+
+defined('PLUGINLIBRARY') or define('PLUGINLIBRARY', MYBB_ROOT.'inc/plugins/pluginlibrary.php');
 
 function affiliates_info()
-{
+{affiliates_activate();
 	return array(
 		"name"			=> "Forum Affiliates Manager",
 		"description"	=> "Easily manage your forum's affiliates.",
@@ -29,8 +31,64 @@ function affiliates_info()
 		"authorsite"	=> "http://community.mybb.com/user-23387.html",
 		"version"		=> "1.1",
 		"guid" 			=> "268b7d5d5bc2892de0f3aefcc82deb99",
-		"compatibility" => "16*"
+		"compatibility" => "18*"
 	);
+}
+
+function affiliates_activate()
+{
+	global $PL;
+	$PL or require_once PLUGINLIBRARY;
+	affiliates_deactivate();
+	
+	$PL->settings('affiliates', 'Forum Affiliates', 'Allows you to manage your forum\'s affiliates.', array(
+			'dimensions'	=> array(
+				'title'			=> 'Maximum Dimensions',
+				'description'	=> 'What is the maximum affiliate image dimensions?',
+				'optionscode'	=> 'text',
+				'value'			=> '88x31'
+			),
+			'groups_ignore'	=> array(
+				'title'			=> 'Disallowed Usergroups',
+				'description'	=> 'Usergroups not allowed to view the affiliates (separate usergroup id\'s by a comma).',
+				'optionscode'	=> 'groupselect',
+				'value'			=> ''
+			),
+	));
+
+	$PL->templates('affiliates', 'Forum Affiliates', array(
+		'list'	=> '<br/><table border="0" cellspacing="{$theme[\'borderwidth\']}" cellpadding="{$theme[\'tablespace\']}" class="tborder">
+<thead> 
+	<tr> 
+		<td class="thead"> 
+			<strong>{$lang->affiliates}</strong>
+		</td> 
+	</tr> 
+</thead> 
+<tbody> 
+	<tr class="trow1"> 
+		<td>
+			{$list_affiliates}
+		</td>
+	</tr>
+</tbody> 
+</table>',
+		'list_item'	=> "<span style=\"width:{\$maxwidth}px;height:{\$maxheight}px;float:left;margin-right:5px;margin-bottom: 2px;text-align:left;\"><a href=\"{\$mybb->settings['bburl']}/index.php?action=visit&amp;id={\$id}&amp;my_post_key={\$mybb->post_code}\"><img src=\"{\$mybb->settings['uploadspath']}/affiliates/{\$affiliate['image']}\" alt=\"\" width=\"auto\" height=\"auto\" title=\"{\$affiliate['name']}\"></a></span>",
+		'list_empty'	=> '{$lang->no_affiliates}',
+	));
+
+	change_admin_permission('config', 'affiliates', -1);
+	
+	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
+	find_replace_templatesets('header', '#'.preg_quote('<navigation>').'#', "<navigation>\n<!--AFFILIATES-->");
+}
+
+function affiliates_deactivate()
+{
+	change_admin_permission('config', 'affiliates', -1);
+	
+	require_once MYBB_ROOT.'/inc/adminfunctions_templates.php';
+	find_replace_templatesets('header', '#'.preg_quote('<!--AFFILIATES-->')."(\r?)\n#", '', 0);
 }
 
 function affiliates_install()
@@ -51,119 +109,8 @@ function affiliates_install()
 			) ENGINE=MyISAM ;
 		");
 	}
-	
-	$template1 = array(
-		"title"		=> "affiliates",
-		"template"	=> $db->escape_string("
-<br/><table border=\"0\" cellspacing=\"1\" cellpadding=\"4\" class=\"tborder\"> 
-<thead> 
-<tr> 
-<td class=\"thead\" colspan=\"5\"> 
-<div><strong>{\$lang->affiliates}</strong></div> 
-</td> 
-</tr> 
-</thead> 
-<tbody> 
-<tr class=\"trow1\"> 
-<td>
-{\$list_affiliates}
-</td>
-</tr>
-</tbody> 
-</table>"),
-		"sid"		=> "-1",
-		"tid" => "NULL",
-	);
-
-	$db->insert_query("templates", $template1);
-	
-	$template2 = array(
-		"title"		=> "list_affiliates",
-		"template"	=> $db->escape_string("<span style=\"width:{\$maxwidth}px;height:{\$maxheight}px;float:left;margin-right:5px;margin-bottom: 2px;text-align:left;\"><a href=\"{\$mybb->settings['bburl']}/index.php?action=visit&amp;id={\$affiliate['id']}&amp;key={\$mybb->post_code}\"><img src=\"{\$mybb->settings['uploadspath']}/affiliates/{\$affiliate['image']}\" alt=\"\" width=\"auto\" height=\"auto\" title=\"{\$affiliate['name']}\"></a></span>"),
-		"sid"		=> "-1",
-		"tid" => "NULL",
-	);
-
-	$db->insert_query("templates", $template2);
-	
-	$template3 = array(
-		"title"		=> "no_affiliates",
-		"template"	=> $db->escape_string("{\$lang->no_affiliates}"),
-		"sid"		=> "-1",
-		"tid" => "NULL",
-	);
-
-	$db->insert_query("templates", $template3);
-	
-	$affiliates = array(
-		"name" => "affiliates",
-		"title" => "Forum Affiliates",
-		"description" => "Allows you to manage your forum\'s affiliates.",
-		"disporder" => "403",
-		"isdefault" => "no",
-	);
-	$group['gid'] = $db->insert_query("settinggroups", $affiliates);
-	$gid = $db->insert_id();
-	
-	$aff[]= array(
-		"name"			=> "aff_active",
-		"title"			=> "Activate",
-		"description"	=> "Do you want to activate the plugin?",
-		"optionscode"	=> "yesno",
-		"value"			=> '1',
-		"disporder"		=> '1',
-		"gid"			=> intval($gid),
-	);
-	
-	$aff[]= array(
-		"name"			=> "aff_dimensions",
-		"title"			=> "Maximum Dimensions",
-		"description"	=> "What is the maximum affiliate image dimensions?",
-		"optionscode"	=> "text",
-		"value"			=> '88x31',
-		"disporder"		=> '2',
-		"gid"			=> intval($gid),
-	);
-	
-	$aff[]= array(
-		"name"			=> "aff_groups_ignore",
-		"title"			=> "Disallowed Usergroups",
-		"description"	=> "Usergroups not allowed to view the affiliates (separate usergroup id\'s by a comma).",
-		"optionscode"	=> "text",
-		"value"			=> '',
-		"disporder"		=> '3',
-		"gid"			=> intval($gid),
-	);
-	
-	$aff[]= array(
-		"name"			=> "aff_header",
-		"title"			=> "Affiliates Location",
-		"description"	=> "Where do you want the affiliates displayed? Your forum\'s header or footer?",
-		"optionscode"	=> "radio
-1=Header
-0=Footer",
-		"value"			=> '',
-		"disporder"		=> '4',
-		"gid"			=> intval($gid),
-	);
-	
-	foreach ($aff as $a)
-	{
-		$db->insert_query("settings", $a);
-	}
-		
-	rebuild_settings();
-	
-	include MYBB_ROOT."/inc/adminfunctions_templates.php";
-	find_replace_templatesets("footer", '#{\$auto_dst_detection}#', "{\$auto_dst_detection}\n{\$affiliates}");
-	find_replace_templatesets("header", '#<navigation>#', "<navigation>\n{\$affiliates_header}");
 
 	change_admin_permission('config', 'affiliates');
-}
-
-function affiliates_deactivate()
-{
-	change_admin_permission('config', 'affiliates', -1);
 }
 
 function affiliates_is_installed()
@@ -175,74 +122,70 @@ function affiliates_is_installed()
 
 function affiliates_uninstall()
 {
-	global $db;
-	
-	if($db->table_exists("affiliates"))
-	{
-		$db->drop_table("affiliates");
-	}
-	
-	$db->delete_query('templates', 'title IN (\'affiliates\',\'list_affiliates\',\'no_affiliates\')');
-	
-	require MYBB_ROOT.'/inc/adminfunctions_templates.php';
-	find_replace_templatesets("footer", '#{\$affiliates}(\r?)\n#', "", 0);
-	find_replace_templatesets("header", '#{\$affiliates_header}(\r?)\n#', "", 0);
-	
-	$db->delete_query("settings","name IN ('aff_active')");
-	$db->delete_query("settinggroups","name='affiliates'");
-	rebuild_settings();
+    global $PL, $db;
+    $PL or require_once PLUGINLIBRARY;
+
+	$db->drop_table("affiliates");
+
+    $PL->settings_delete('affiliates');
+    $PL->templates_delete('affiliates');
 	
 	change_admin_permission('config', 'affiliates', -1);
 }
 
-function affiliates_run()
+function affiliates_run(&$page)
 {
-	global $mybb, $db, $templates, $lang, $affiliates, $affiliates_header;
-	
-	$lang->load("affiliates");
-	
-	if($mybb->settings['aff_active'] && (!check_groups($mybb->settings['aff_groups_ignore'])))
+	global $mybb;
+
+	if(!is_member($mybb->settings['affiliates_groups_ignore']) && strpos($page, '<!--AFFILIATES-->') !== false)
 	{
-		if($mybb->input['action'] == "visit")
+		if($mybb->get_input('action') == "visit")
 		{
-			$query = $db->simple_select("affiliates", "*", "id='".intval($mybb->input['id'])."'");
+			global $db;
+			
+			verify_post_check($mybb->get_input('my_post_key', 1));
+
+			$query = $db->simple_select("affiliates", "id, link", "id='{$mybb->get_input('id', 1)}'");
 			$affiliate = $db->fetch_array($query);
 				
-			if(!$affiliate['id'])
+			if(empty($affiliate['id']) || empty($affiliate['link']))
 			{
 				error($lang->invalid_affiliate);
 			}
-			
-			verify_post_check($mybb->input['key']);
 
-			$db->query("UPDATE ".TABLE_PREFIX."affiliates SET clicks = clicks +1 WHERE id='".intval($mybb->input['id'])."'");
+			$db->update_query('affiliates', array('clicks' => "clicks+1"), "id='{$mybb->get_input('id', 1)}'", 1, true);
 			
 			header("Location: ".$affiliate['link']."");
 		}
-		
-		$query = $db->simple_select("affiliates", "*", "active='1'", array("order_by" => "id"));
 
-		if($db->num_rows($query) > 0)
+		global $templates, $lang, $theme;
+
+		$lang->load("affiliates");
+
+		$list_affiliates = '';
+
+		$affiliates = $mybb->cache->read('affiliates');
+
+		if($affiliates)
 		{
-			while($affiliate = $db->fetch_array($query))
+			foreach($affiliates as $id => $affiliate)
 			{
-				list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
-				eval("\$list_affiliates .= \"".$templates->get("list_affiliates")."\";");
+				$affiliate['name'] = htmlspecialchars_uni($affiliate['name']);
+				$affiliate['image'] = htmlspecialchars_uni($affiliate['image']);
+	
+				list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
+				eval("\$list_affiliates .= \"".$templates->get("affiliates_list_item")."\";");
 			}
 		}
-		else
+
+		if(!$list_affiliates)
 		{
-			eval("\$list_affiliates = \"".$templates->get("no_affiliates")."\";");
+			eval("\$list_affiliates = \"".$templates->get("affiliates_list_empty")."\";");
 		}
 		
-		if($mybb->settings['aff_header'] == 1)
-		{
-			eval("\$affiliates_header = \"".$templates->get("affiliates")."\";");
-		}
-		else
-		{
-			eval("\$affiliates = \"".$templates->get("affiliates")."\";");
-		}
+		eval("\$affiliates = \"".$templates->get("affiliates_list")."\";");
+
+		$page = str_replace('<!--AFFILIATES-->', $affiliates, $page);
 	}
 }
 
@@ -255,7 +198,7 @@ function affiliates_admin_nav(&$sub_menu)
 {
 	global $mybb, $lang;
 
-	$lang->load("affiliates", false, true);
+	$lang->load("affiliates", true);
 		
 	end($sub_menu);
 	$key = (key($sub_menu))+10;
@@ -272,7 +215,7 @@ function affiliates_admin_permissions(&$admin_permissions)
 {
   	global $db, $mybb, $lang;
 		
-	$lang->load("affiliates", false, true);
+	$lang->load("affiliates", true);
 		
 	$admin_permissions['affiliates'] = "Can manage forum forum affiliates?";
 }
@@ -281,7 +224,7 @@ function affiliates_admin()
 {
 	global $mybb, $db, $page, $lang;
 	
-	$lang->load("affiliates", false, true);
+	$lang->load("affiliates", true);
 	
 	if($page->active_action != "affiliates")
 	{
@@ -333,7 +276,9 @@ function affiliates_admin()
 			unlink(MYBB_ROOT.$mybb->settings['uploadspath'].'/affiliates/'.$affimg);
 			
 			$db->delete_query("affiliates", "id='{$affiliate['id']}'");
-			
+
+			affiliates_cache_update();
+
 			flash_message($lang->success_affiliate_deleted, 'success');
 			admin_redirect("index.php?module=config-affiliates");
 		}
@@ -362,7 +307,7 @@ function affiliates_admin()
 		if($mybb->request_method == "post")
 		{
 			list($width, $height) = @getimagesize($_FILES['image_upload']['tmp_name']);
-			list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
+			list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
 			switch(strtolower($_FILES['image_upload']['type']))
 			{
 				case "image/gif":
@@ -413,7 +358,7 @@ function affiliates_admin()
 					$allowed_file_types = array('.png','.jpg','.bmp','.gif');
 					
 					list($width, $height, $type) = @getimagesize($_FILES['image_upload']['tmp_name']);
-					list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
+					list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
 					
 					// delete old image
 					$old_affimg = $affiliate['image'];
@@ -429,7 +374,9 @@ function affiliates_admin()
 						"image" => $newfilename,
 					);
 					$db->update_query("affiliates", $update, "id={$mybb->input['id']}");
-			
+
+					affiliates_cache_update();
+
 					flash_message($lang->success_affiliate_edited, 'success');
 					admin_redirect("index.php?module=config-affiliates");
 				}
@@ -440,7 +387,9 @@ function affiliates_admin()
 						"link" => $mybb->input['url'],
 					);
 					$db->update_query("affiliates", $update, "id={$affiliate['id']}");
-				
+
+					affiliates_cache_update();
+
 					flash_message($lang->success_affiliate_edited, 'success');
 					admin_redirect("index.php?module=config-affiliates");
 				}
@@ -454,7 +403,7 @@ function affiliates_admin()
 		
 		$form = new Form("index.php?module=config-affiliates&amp;action=edit&amp;id={$affiliate['id']}", "post", "", 1);
 		
-		list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
+		list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
 		
 		$form_container = new FormContainer($lang->edit_affiliate_info);
 		$form_container->output_row($lang->current_image, "", "<span style=\"width:{$maxwidth}px;height:{$maxheight}px;\"><img src=\".".$mybb->settings['uploadspath']."/affiliates/".htmlspecialchars_uni($affiliate['image'])."\" width=\"auto\" height=\"auto\" alt=\"#\"></span>", array('width' => 1));
@@ -479,6 +428,9 @@ function affiliates_admin()
 			"active" => 1
 		);
 		$db->update_query("affiliates", $array, "id={$mybb->input['id']}");
+
+		affiliates_cache_update();
+
 		flash_message($lang->affiliate_approved, 'success');
 		admin_redirect("index.php?module=config-affiliates");
 	}
@@ -491,6 +443,9 @@ function affiliates_admin()
 			"active" => 0
 		);
 		$db->update_query("affiliates", $array, "id={$mybb->input['id']}");
+
+		affiliates_cache_update();
+
 		flash_message($lang->affiliate_unapproved, 'success');
 		admin_redirect("index.php?module=config-affiliates");
 	}
@@ -503,7 +458,7 @@ function affiliates_admin()
 		if($mybb->request_method == "post")
 		{
 			list($width, $height) = @getimagesize($_FILES['image_upload']['tmp_name']);
-			list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
+			list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
 			switch(strtolower($_FILES['image_upload']['type']))
 			{
 				case "image/gif":
@@ -556,7 +511,9 @@ function affiliates_admin()
 					"image" => $process_upload
 				);
 				$db->insert_query("affiliates", $insert);
-		
+
+				affiliates_cache_update();
+
 				flash_message($lang->success_affiliate_added, 'success');
 				admin_redirect("index.php?module=config-affiliates");				
 			}
@@ -567,7 +524,7 @@ function affiliates_admin()
 			$page->output_inline_error($errors);
 		}
 		
-		list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
+		list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
 		
 		$form = new Form("index.php?module=config-affiliates&amp;action=add", "post", "", 1);
 		
@@ -605,14 +562,14 @@ function affiliates_admin()
 		{
 			if($affiliate['active'] == 1)
 			{
-				$active = "<img src=\"".$mybb->settings['bburl']."/images/minion.gif\" title=\"Approved\">";
+				$active = "<img src=\"styles/{$page->style}/images/icons/bullet_on.png\" title=\"{$lang->alt_enabled}\">";
 			}
 			else
 			{
-				$active = "<img src=\"".$mybb->settings['bburl']."/images/minioff.gif\" title=\"Unapproved\">";
+				$active = "<img src=\"styles/{$page->style}/images/icons/bullet_off.png\" title=\"{$lang->alt_disabled}\">";
 			}
 			
-			list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['aff_dimensions']));
+			list($maxwidth, $maxheight) = explode("x", my_strtolower($mybb->settings['affiliates_dimensions']));
 			
 			$table->construct_cell($active, array("class" => "align_center"));
 			$table->construct_cell("<a href=\"".$affiliate['link']."\" target=\"_blank\">".$affiliate['name']."</a>");
@@ -652,39 +609,19 @@ function affiliates_admin()
 	exit;
 }
 
-function check_groups($groups_check)
+function affiliates_cache_update()
 {
-    global $mybb;
-    
-    if($groups_check == '')
-    {
-        return false;
-    }
-    
-    $groups = explode(',', $groups_check);
-    $add_groups = explode(',', $mybb->user['additionalgroups']);
-    
-    if(!in_array($mybb->user['usergroup'], $groups))
-    {
-        if($add_groups)
-        {
-            if(count(array_intersect($add_groups, $groups)) == 0)
-            {
-                return false;
-            }
-            else
-            {
-                return true;
-            }
-        }
-        else
-        {
-            return false;
-        }
-    }
-    else
-    {
-        return true;
-    }
-} 
-?>
+	global $db, $cache;
+
+	$items = array();
+
+	$query = $db->simple_select('affiliates', 'id, image, name', "active='1'");
+	while($affiliate = $db->fetch_array($query))
+	{
+		$id = (int)$affiliate['id'];
+		$items[$id] = $affiliate;
+		unset($items[$id]['id']);
+	}
+
+	$cache->update('affiliates', $items);
+}
