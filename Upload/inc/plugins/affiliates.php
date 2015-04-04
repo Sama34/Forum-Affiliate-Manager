@@ -13,11 +13,31 @@ if(!defined("IN_MYBB"))
 	die("Direct initialization of this file is not allowed.<br /><br />Please make sure IN_MYBB is defined.");
 }
 
-$plugins->add_hook("admin_config_menu", "affiliates_admin_nav");
-$plugins->add_hook("admin_config_permissions", "affiliates_admin_permissions");
-$plugins->add_hook("admin_config_action_handler", "affiliates_action_handler");
-$plugins->add_hook("admin_load", "affiliates_admin");
-$plugins->add_hook("pre_output_page", "affiliates_run");
+// Add our hook
+if(defined('IN_ADMINCP'))
+{
+	$plugins->add_hook("admin_config_menu", "affiliates_admin_nav");
+	$plugins->add_hook("admin_config_permissions", "affiliates_admin_permissions");
+	$plugins->add_hook("admin_config_action_handler", "affiliates_action_handler");
+	$plugins->add_hook("admin_load", "affiliates_admin");
+}
+else
+{
+	global $templatelist;
+
+	if(isset($templatelist))
+	{
+		$templatelist .= ',';
+	}
+	else
+	{
+		$templatelist = '';
+	}
+
+	$templatelist .= 'affiliates_list, affiliates_list_item, affiliates_list_empty';
+
+	$plugins->add_hook("pre_output_page", "affiliates_run");
+}
 
 defined('PLUGINLIBRARY') or define('PLUGINLIBRARY', MYBB_ROOT.'inc/plugins/pluginlibrary.php');
 
