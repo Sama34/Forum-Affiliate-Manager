@@ -73,6 +73,7 @@ function affiliates_activate()
 	</tr>
 </tbody> 
 </table>',
+		'list_item'	=> '<span style="width:{$maxwidth}px;height:{$maxheight}px;float:left;margin-right:5px;margin-bottom: 2px;text-align:left;"><a href="{$mybb->settings[\'bburl\']}/index.php?action=affiliate&amp;id={$id}&amp;my_post_key={$mybb->post_code}"><img src="{$mybb->settings[\'uploadspath\']}/affiliates/{$affiliate[\'image\']}" alt="" width="auto" height="auto" title="{$affiliate[\'name\']}"></a></span>',
 		'list_empty'	=> '{$lang->no_affiliates}',
 	));
 
@@ -138,6 +139,7 @@ function affiliates_run(&$page)
 
 	if(!is_member($mybb->settings['affiliates_groups_ignore']) && strpos($page, '<!--AFFILIATES-->') !== false)
 	{
+		if($mybb->get_input('action') == 'affiliate')
 		{
 			global $db;
 
@@ -159,8 +161,6 @@ function affiliates_run(&$page)
 		global $templates, $lang, $theme;
 
 		$lang->load("affiliates");
-
-		$current_location = get_current_location();
 
 		$list_affiliates = '';
 
